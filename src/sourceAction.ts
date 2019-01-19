@@ -5,16 +5,17 @@ import { CodeActionParams, LanguageClient } from 'vscode-languageclient';
 import { Commands } from './commands';
 import { applyWorkspaceEdit } from './extension';
 import { OverridableMethodsRequest, AddOverridableMethodsRequest } from './protocol';
+import { resolveRequirements } from './requirements';
 
 export function registerCommands(languageClient: LanguageClient) {
     commands.registerCommand(Commands.OVERRIDE_METHODS_PROMPT, async (params: CodeActionParams) => {
         const result = await languageClient.sendRequest(OverridableMethodsRequest.type, params);
-        if (!result || !result.length) {
+        if (!result || !result.methods || !result.methods.length) {
             window.showWarningMessage('No overridable methods found in the super type.');
             return;
         }
 
-        result.sort((a, b) => {
+        result.methods.sort((a, b) => {
             const declaringClass = a.declaringClass.localeCompare(b.declaringClass);
             if (declaringClass !== 0) {
                 return declaringClass;
@@ -28,7 +29,7 @@ export function registerCommands(languageClient: LanguageClient) {
             return a.parameters.length - b.parameters.length;
         });
 
-        const quickPickItems = result.map(method => {
+        const quickPickItems = result.methods.map(method => {
             return {
                 label: `${method.name}(${method.parameters.join(',')})`,
                 description: `${method.declaringClassType}: ${method.declaringClass}`,
@@ -39,7 +40,7 @@ export function registerCommands(languageClient: LanguageClient) {
 
         const selectedItems = await window.showQuickPick(quickPickItems, {
             canPickMany: true,
-            placeHolder: 'Select methods to override or implement.'
+            placeHolder: `Select methods to override or implement in ${result.type}`
         });
         if (!selectedItems.length) {
             return;
